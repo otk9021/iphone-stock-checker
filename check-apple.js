@@ -19,10 +19,12 @@ const TARGET_STORES = [
 ];
 
 const TARGET_DAYS = ["本日", "明日"];
-const TARGET_COLORS = ["シルバー", "ディープブルー", "コズミックオレンジ"];
 
 function normalizeText(text) {
-  return (text || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  return (text || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function escapeRegExp(str) {
@@ -62,6 +64,22 @@ async function clickFirstText(page, texts) {
   return false;
 }
 
+async function clickFirstSelector(page, selectors) {
+  for (const selector of selectors) {
+    try {
+      const loc = page.locator(selector).first();
+      if ((await loc.count()) > 0 && (await loc.isVisible())) {
+        await loc.click({ timeout: 4000 });
+        console.log("CLICKED_SELECTOR:", selector);
+        return true;
+      }
+    } catch (e) {
+      console.log("CLICK_SELECTOR_SKIP:", selector, e.message);
+    }
+  }
+  return false;
+}
+
 async function openPickupUi(page) {
   await page.waitForTimeout(3000);
 
@@ -79,6 +97,14 @@ async function openPickupUi(page) {
     "店舗での受け取り",
     "受け取る",
     "Apple Storeで受け取る"
+  ]);
+
+  await page.waitForTimeout(2500);
+
+  // 念のため data-autom 系も試す
+  await clickFirstSelector(page, [
+    '[data-autom*="pickup"]',
+    '[data-autom*="store"]'
   ]);
 
   await page.waitForTimeout(2500);
@@ -146,64 +172,29 @@ async function getVisibleText(page) {
 
 function parseHitsFromText(text) {
   const normalized = normalizeText(text);
-  console.log("VISIBLE_TEXT_PREVIEW:", normalized.slice(0, 1200));
 
-  const colorPattern = TARGET_COLORS.map(escapeRegExp).join("|");
-  const titleRegex = new RegExp(
-    `(iPhone 17 Pro(?: Max)?)\\s*256GB\\s*(${colorPattern})`,
-    "g"
-  );
-
-  const titleMatches = [];
-  let m;
-  while ((m = titleRegex.exec(normalized)) !== null) {
-    titleMatches.push({
-      full: m[0],
-      model: m[1],
-      color: m[2],
-      index: m.index
-    });
-  }
-
-  console.log("TITLE_MATCH_COUNT:", titleMatches.length);
-  titleMatches.forEach((x, i) =>
-    console.log(`TITLE_MATCH[${i}]: ${x.full} @ ${x.index}`)
-  );
+  console.log("VISIBLE_TEXT_PREVIEW:", normalized.slice(0, 2000));
 
   const hits = [];
   const seen = new Set();
 
-  for (let i = 0; i < titleMatches.length; i++) {
-    const current = titleMatches[i];
-    const next = titleMatches[i + 1];
-    const start = current.index;
-    const end = next ? next.index : Math.min(normalized.length, start + 1600);
-    const block = normalized.slice(start, end);
+  for (const store of TARGET_STORES) {
+    for (const day of TARGET_DAYS) {
+      const re1 = new RegExp(
+        `${escapeRegExp(store)}[\\s\\S]{0,220}?受け取れる日\\s*${escapeRegExp(day)}`
+      );
+      const re2 = new RegExp(
+        `受け取れる日\\s*${escapeRegExp(day)}[\\s\\S]{0,220}?${escapeRegExp(store)}`
+      );
+      const re3 = new RegExp(
+        `${escapeRegExp(store)}[\\s\\S]{0,220}?${escapeRegExp(day)}`
+      );
 
-    console.log(`BLOCK[${i}] START:`, block.slice(0, 700));
-
-    for (const store of TARGET_STORES) {
-      for (const day of TARGET_DAYS) {
-        const re1 = new RegExp(
-          `${escapeRegExp(store)}[\\s\\S]{0,200}?受け取れる日\\s*${escapeRegExp(day)}`
-        );
-        const re2 = new RegExp(
-          `受け取れる日\\s*${escapeRegExp(day)}[\\s\\S]{0,200}?${escapeRegExp(store)}`
-        );
-
-        if (re1.test(block) || re2.test(block)) {
-          const key = `${current.full}__${store}__${day}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            hits.push({
-              title: current.full,
-              model: current.model,
-              color: current.color,
-              store,
-              day,
-              block: block.slice(0, 500)
-            });
-          }
+      if (re1.test(normalized) || re2.test(normalized) || re3.test(normalized)) {
+        const key = `${store}__${day}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          hits.push({ store, day });
         }
       }
     }
@@ -240,7 +231,14 @@ async function inspectOne(page, url) {
   await page.waitForTimeout(5000);
 
   const visibleText = await getVisibleText(page);
-  return parseHitsFromText(visibleText);
+  const hits = parseHitsFromText(visibleText);
+
+  console.log("HITS_FOR_URL:", hits.length);
+  hits.forEach((hit, idx) => {
+    console.log(`HIT[${idx}]: ${hit.store} | ${hit.day}`);
+  });
+
+  return hits;
 }
 
 async function main() {
@@ -252,10 +250,6 @@ async function main() {
 
     for (const url of START_URLS) {
       const hits = await inspectOne(page, url);
-      console.log("HITS_FOR_URL:", hits.length);
-      hits.forEach((hit, idx) => {
-        console.log(`HIT[${idx}]: ${hit.title} | ${hit.store} | ${hit.day}`);
-      });
       allHits.push(...hits);
     }
 
@@ -263,7 +257,7 @@ async function main() {
     const seen = new Set();
 
     for (const hit of allHits) {
-      const key = `${hit.title}__${hit.store}__${hit.day}`;
+      const key = `${hit.store}__${hit.day}`;
       if (!seen.has(key)) {
         seen.add(key);
         deduped.push(hit);
@@ -276,20 +270,21 @@ async function main() {
     }
 
     console.log("TARGET_HITS_START");
+
     for (const hit of deduped) {
       console.log(`STORE: ${hit.store}`);
       console.log(`DAY: ${hit.day}`);
-      console.log(`TITLE: ${hit.title}`);
 
       const message = [
-        "🔥 iPhone店頭在庫あり",
-        `機種: ${hit.title}`,
+        "🔥 iPhone在庫あり（類似モデル含む）",
         `店舗: ${hit.store}`,
-        `受取日: ${hit.day}`
+        `受取日: ${hit.day}`,
+        `郵便番号: ${ZIP_CODE}`
       ].join("\n");
 
       await sendDiscord(message);
     }
+
     console.log("TARGET_HITS_END");
   } finally {
     await browser.close();
