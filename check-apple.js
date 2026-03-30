@@ -110,36 +110,34 @@ async function openPickupUi(page) {
 }
 
 async function fillZipCode(page) {
-  const inputs = await page.locator("input").all();
-
-  for (const input of inputs) {
-    try {
-      const placeholder = await input.getAttribute("placeholder");
-      const aria = await input.getAttribute("aria-label");
-      const type = await input.getAttribute("type");
-      const name = await input.getAttribute("name");
-
-      const meta = `${placeholder || ""} ${aria || ""} ${type || ""} ${name || ""}`;
-
-      if (
-        meta.includes("郵便") ||
-        meta.includes("検索") ||
-        meta.includes("住所") ||
-        meta.includes("search")
-      ) {
-        if (await input.isVisible()) {
-          await input.click({ timeout: 3000 });
-          await input.fill(ZIP_CODE, { timeout: 5000 });
-          console.log("ZIP_INPUT_SUCCESS:", meta);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.log("ZIP_INPUT_SCAN_SKIP:", e.message);
+  try {
+    const input = page.getByPlaceholder("郵便番号");
+    if (await input.isVisible({ timeout: 5000 })) {
+      await input.fill(ZIP_CODE);
+      console.log("ZIP_INPUT_SUCCESS: placeholder");
+      return true;
     }
-  }
+  } catch {}
 
-  console.log("ZIP_INPUT_NOT_FOUND (ALL INPUT SCANNED)");
+  try {
+    const input = page.getByRole("textbox");
+    if (await input.first().isVisible({ timeout: 5000 })) {
+      await input.first().fill(ZIP_CODE);
+      console.log("ZIP_INPUT_SUCCESS: role");
+      return true;
+    }
+  } catch {}
+
+  try {
+    const input = page.locator('input[type="search"]').first();
+    if (await input.isVisible({ timeout: 5000 })) {
+      await input.fill(ZIP_CODE);
+      console.log("ZIP_INPUT_SUCCESS: search");
+      return true;
+    }
+  } catch {}
+
+  console.log("ZIP_INPUT_FAILED_FINAL");
   return false;
 }
 
@@ -233,9 +231,9 @@ async function inspectOne(page, url) {
       console.log("ENTER_SKIP:", e.message);
     }
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 
-    await clickFirstText(page, ["検索", "表示", "続ける", "確認"]);
+    await clickFirstText(page, ["検索", "表示", "続ける"]);
   }
 
   await page.waitForTimeout(8000);
