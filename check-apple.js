@@ -4,6 +4,10 @@ const URL =
   "https://www.apple.com/jp/shop/fulfillment-messages?parts.0=MTXW3J/A&searchNearby=true&store=R045";
 
 async function sendDiscord(msg) {
+  if (!DISCORD_WEBHOOK) {
+    throw new Error("DISCORD_WEBHOOK is not set");
+  }
+
   await fetch(DISCORD_WEBHOOK, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -12,14 +16,26 @@ async function sendDiscord(msg) {
 }
 
 async function main() {
- const res = await fetch(URL, {
-  headers: {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-  },
-});
-  const data = await res.json();
+  const res = await fetch(URL, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "application/json",
+    },
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`Apple API error: ${res.status} ${text.slice(0, 300)}`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Apple API did not return JSON: ${text.slice(0, 300)}`);
+  }
 
   const stores = data.body?.content?.pickupMessage?.stores || [];
 
@@ -46,4 +62,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
