@@ -53,7 +53,7 @@ async function clickFirstText(page, texts) {
     try {
       const loc = page.getByText(text, { exact: false }).first();
       if ((await loc.count()) > 0 && (await loc.isVisible())) {
-        await loc.click({ timeout: 4000 });
+        await loc.click({ timeout: 5000 });
         console.log("CLICKED_TEXT:", text);
         return true;
       }
@@ -69,7 +69,7 @@ async function clickFirstSelector(page, selectors) {
     try {
       const loc = page.locator(selector).first();
       if ((await loc.count()) > 0 && (await loc.isVisible())) {
-        await loc.click({ timeout: 4000 });
+        await loc.click({ timeout: 5000 });
         console.log("CLICKED_SELECTOR:", selector);
         return true;
       }
@@ -101,7 +101,6 @@ async function openPickupUi(page) {
 
   await page.waitForTimeout(2500);
 
-  // 念のため data-autom 系も試す
   await clickFirstSelector(page, [
     '[data-autom*="pickup"]',
     '[data-autom*="store"]'
@@ -111,26 +110,36 @@ async function openPickupUi(page) {
 }
 
 async function fillZipCode(page) {
-  const selectors = [
-    'input[placeholder*="郵便"]',
-    'input[aria-label*="郵便"]',
-    'input[type="search"]'
-  ];
+  const inputs = await page.locator("input").all();
 
-  for (const selector of selectors) {
+  for (const input of inputs) {
     try {
-      const loc = page.locator(selector).first();
-      if ((await loc.count()) > 0 && (await loc.isVisible())) {
-        await loc.fill(ZIP_CODE, { timeout: 5000 });
-        console.log("ZIP_INPUT_OK:", selector, ZIP_CODE);
-        return true;
+      const placeholder = await input.getAttribute("placeholder");
+      const aria = await input.getAttribute("aria-label");
+      const type = await input.getAttribute("type");
+      const name = await input.getAttribute("name");
+
+      const meta = `${placeholder || ""} ${aria || ""} ${type || ""} ${name || ""}`;
+
+      if (
+        meta.includes("郵便") ||
+        meta.includes("検索") ||
+        meta.includes("住所") ||
+        meta.includes("search")
+      ) {
+        if (await input.isVisible()) {
+          await input.click({ timeout: 3000 });
+          await input.fill(ZIP_CODE, { timeout: 5000 });
+          console.log("ZIP_INPUT_SUCCESS:", meta);
+          return true;
+        }
       }
     } catch (e) {
-      console.log("ZIP_INPUT_SKIP:", selector, e.message);
+      console.log("ZIP_INPUT_SCAN_SKIP:", e.message);
     }
   }
 
-  console.log("ZIP_INPUT_NOT_FOUND");
+  console.log("ZIP_INPUT_NOT_FOUND (ALL INPUT SCANNED)");
   return false;
 }
 
@@ -223,12 +232,13 @@ async function inspectOne(page, url) {
     } catch (e) {
       console.log("ENTER_SKIP:", e.message);
     }
+
+    await page.waitForTimeout(2000);
+
+    await clickFirstText(page, ["検索", "表示", "続ける", "確認"]);
   }
 
   await page.waitForTimeout(8000);
-
-  await clickFirstText(page, ["続ける", "確認", "検索", "表示"]);
-  await page.waitForTimeout(5000);
 
   const visibleText = await getVisibleText(page);
   const hits = parseHitsFromText(visibleText);
