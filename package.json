@@ -1,0 +1,7 @@
+{
+  "name": "iphone-stock-checker",
+  "private": true,
+  "dependencies": {
+    "playwright-core": "^1.53.0"
+  }
+}
