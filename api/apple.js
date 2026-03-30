@@ -1,27 +1,38 @@
-export default async function handler(req, res) {
-  try {
-    const url =
-      "https://www.apple.com/jp/shop/fulfillment-messages?parts.0=MU7A3J/A&searchNearby=true&store=R091&fvip=13";
+import { chromium } from "playwright-core";
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json,text/plain,*/*",
-        "Referer": "https://www.apple.com/jp/shop/buy-iphone/",
-      },
+export default async function handler(req, res) {
+  let browser;
+
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    const text = await response.text();
+    const page = await browser.newPage({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    });
+
+    await page.goto(
+      "https://www.apple.com/jp/shop/buy-iphone/iphone-17-pro/6.3%E3%82%A4%E3%83%B3%E3%83%81%E3%83%87%E3%82%A3%E3%82%B9%E3%83%97%E3%83%AC%E3%82%A4-256gb-%E3%82%B7%E3%83%AB%E3%83%90%E3%83%BC-sim%E3%83%95%E3%83%AA%E3%83%BC",
+      { waitUntil: "domcontentloaded", timeout: 60000 }
+    );
+
+    const title = await page.title();
+    const html = await page.content();
 
     res.status(200).json({
       ok: true,
-      status: response.status,
-      preview: text.slice(0, 1200),
+      title,
+      preview: html.slice(0, 1200),
     });
   } catch (e) {
     res.status(500).json({
       ok: false,
-      error: e.message,
+      error: String(e),
     });
+  } finally {
+    if (browser) await browser.close();
   }
 }
