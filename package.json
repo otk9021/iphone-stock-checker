@@ -1,8 +1,8 @@
 {
   "name": "iphone-stock-checker",
   "private": true,
+  "type": "module",
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.1",
-    "playwright-core": "^1.53.0"
+    "playwright": "^1.53.0"
   }
 }
