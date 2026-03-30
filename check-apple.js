@@ -106,6 +106,14 @@ async function inspectOnePage(page, url) {
     timeout: 60000,
   });
 
+  try {
+  await page.fill('input[type="search"]', '160-0022');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(5000);
+} catch (e) {
+  console.log("ZIP INPUT SKIP:", e.message);
+}
+
   await page.waitForTimeout(8000);
 
   return captured;
