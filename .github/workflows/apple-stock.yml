@@ -27,3 +27,5 @@ jobs:
 
       - name: Run checker
         run: node check-apple.js
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
