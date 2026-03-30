@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK;
 
 const URL =
@@ -17,8 +15,7 @@ async function main() {
   const res = await fetch(URL);
   const data = await res.json();
 
-  const stores =
-    data.body?.content?.pickupMessage?.stores || [];
+  const stores = data.body?.content?.pickupMessage?.stores || [];
 
   for (const store of stores) {
     const name = store.storeName;
